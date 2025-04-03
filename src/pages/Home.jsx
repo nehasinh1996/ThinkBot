@@ -1,200 +1,181 @@
 import { useContext, useState } from "react";
 import "../App.css";
-import { RiImageAiLine, RiImageAddLine } from "react-icons/ri";
-import { MdChatBubbleOutline } from "react-icons/md";
-import { FiPlus } from "react-icons/fi";
+import { RiImageAddLine } from "react-icons/ri";
+import { FaMagic } from "react-icons/fa";
 import { FaArrowUpLong } from "react-icons/fa6";
-import { dataContext, prevUser, user } from "../context/UserContext";
-import Chat from "./Chat";
+import { dataContext, prevUser } from "../context/UserContext";
 import { generateResponse } from "../gemini";
-import { query } from "../huggingFace";
+import { describeImage, generateImage } from "../huggingFace";
+
 
 function Home() {
   const {
-    startRes,
     setStartRes,
-    popUp,
-    setPopUP,
     input,
     setInput,
-    feature,
     setFeature,
     setShowResult,
-    setPrevFeature,
     setGenImgUrl,
     uploadedImg,
-    setUploadedImg,
+    setUploadedImg
   } = useContext(dataContext);
 
-  // Handle text input submit
-  async function handleSubmit(e) {
+  const [messages, setMessages] = useState([]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!input.trim()) return;
+  
     setStartRes(true);
-    setPrevFeature(feature);
-
-    // Clear previous data
-    setShowResult("");
-    prevUser.data = user.data;
-    prevUser.mime_type = user.mime_type;
-    prevUser.imgUrl = user.imgUrl;
+    setMessages((prev) => [...prev, { sender: "user", text: input }]);
     prevUser.prompt = input;
-
-    // Reset user data
-    user.data = null;
-    user.mime_type = null;
-    user.imgUrl = null;
     setInput("");
+  
+    // ✅ Process uploaded image first
+    if (uploadedImg) {
+      try {
+        const fileInput = document.getElementById("inputImg").files[0];
+  
+        if (fileInput) {
+          const result = await describeImage(fileInput); // ✅ FIXED
+  
+          if (typeof result === "string") {
+            setMessages((prev) => [...prev, { sender: "ai", text: result }]);
+          } else {
+            console.error("❌ Unexpected response format:", result);
+          }
+  
+          setUploadedImg(null); // ✅ Reset uploaded image
+          return;
+        }
+      } catch (error) {
+        console.error("❌ Error analyzing image:", error);
+      }
+    }
+  
+    // ✅ If no image, process text input
+    try {
+      const result = await generateResponse(input); // ✅ Pass input to AI
+      setShowResult(result);
+      setMessages((prev) => [...prev, { sender: "ai", text: result }]);
+      setFeature("chat");
+    } catch (error) {
+      console.error("❌ Error fetching chat response:", error);
+    }
+  };
+  
 
-    // Generate response
-    const result = await generateResponse();
-    setShowResult(result);
-    setFeature("chat");
-  }
-
-  // ✅ Handle image upload properly
-  function handleImage(e) {
+  const handleImage = async (e) => {
     setFeature("upimg");
     const file = e.target.files[0];
-
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target.result.split(",")[1];
-        user.data = base64;
-        user.mime_type = file.type;
-        const imageUrl = `data:${user.mime_type};base64,${user.data}`;
-
-        setUploadedImg(imageUrl); // ✅ Store the image persistently
-      };
-      reader.readAsDataURL(file);
+  
+    if (!file) return;
+  
+    if (!file.type.startsWith("image/")) {
+      alert("❌ Please upload a valid image file.");
+      return;
     }
-  }
+  
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const imageUrl = event.target.result;
+      setUploadedImg(imageUrl);
+      prevUser.imgUrl = imageUrl;
+  
+      // ✅ Show uploaded image in chat
+      setMessages((prev) => [...prev, { sender: "user", img: imageUrl, text: "What is this?" }]);
+  
+      try {
+        const result = await describeImage(file); // ✅ FIXED
+  
+        if (typeof result === "string") {
+          setMessages((prev) => [...prev, { sender: "ai", text: result }]);
+        } else {
+          console.error("❌ Unexpected response format:", result);
+        }
+      } catch (error) {
+        console.error("❌ Error analyzing image:", error);
+      }
+    };
+  
+    reader.readAsDataURL(file);
+  };
+  
 
-  // Handle image generation
-  async function handleGenerateImg() {
+  const handleGenerateImg = async () => {
+    if (!input.trim()) return;
     setStartRes(true);
-    setPrevFeature(feature);
     setGenImgUrl("");
-
     prevUser.prompt = input;
-
-    const result = await query();
-    const url = URL.createObjectURL(result);
-    setGenImgUrl(url);
-
+  
+    setMessages((prev) => [...prev, { sender: "user", text: input }]);
     setInput("");
-    setFeature("chat");
-  }
+  
+    try {
+      const result = await generateImage(input); // ✅ FIXED
+  
+      if (typeof result === "string") {
+        setMessages((prev) => [...prev, { sender: "ai", img: result }]);
+        setFeature("genimg");
+      } else {
+        console.error("⚠️ Invalid response format for image generation.");
+      }
+    } catch (error) {
+      console.error("❌ Error generating image:", error);
+    }
+  };
+  
 
   return (
     <div className="home">
       <nav>
-        <div
-          className="logo"
-          onClick={() => {
-            setStartRes(false);
-            setFeature("chat");
-            user.data = null;
-            user.mime_type = null;
-            user.imgUrl = null;
-            setUploadedImg(null); // ✅ Reset uploaded image
-            setPopUP(false);
-          }}
-        >
-          Smart AI Bot
+        <div className="logo" onClick={() => window.location.reload()}>
+          <img src="/logo.png" alt="Think Bot" className="logo-img" />
         </div>
       </nav>
 
-      <input
-        type="file"
-        accept="image/*"
-        hidden
-        id="inputImg"
-        onChange={handleImage}
-      />
+      <input type="file" accept="image/*" hidden id="inputImg" onChange={handleImage} />
 
-      {!startRes ? (
-        <div className="hero">
-          <span id="tag">What can I help with?</span>
-          <div className="cate">
-            <div
-              className="upImg"
-              onClick={() => document.getElementById("inputImg").click()}
-            >
-              <RiImageAddLine />
-              <span>Upload Image</span>
-            </div>
-            <div className="genImg" onClick={() => setFeature("genimg")}>
-              <RiImageAiLine />
-              <span>Generate Image</span>
-            </div>
-            <div className="chat" onClick={() => setFeature("chat")}>
-              <MdChatBubbleOutline />
-              <span>Let's Chat</span>
-            </div>
+      <div className="chat-page">
+        {messages.map((msg, index) => (
+          <div key={index} className={msg.sender === "user" ? "user-chat" : "ai-chat"}>
+            {msg.img && <img src={msg.img} alt="Uploaded" className="uploaded-image" />}
+            {msg.text && <p>{msg.text}</p>}
+          </div>
+        ))}
+      </div>
+
+      <form className="input-box" onSubmit={handleSubmit}>
+        <div className="input-wrapper">
+          <div className="input-container">
+            <input
+              type="text"
+              placeholder="Type your prompt..."
+              onChange={(e) => setInput(e.target.value)}
+              value={input}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+            />
+            {input.trim() && (
+              <button type="submit" className="arrow-btn">
+                <FaArrowUpLong />
+              </button>
+            )}
+          </div>
+
+          <div className="btn-container">
+            <button type="button" onClick={handleGenerateImg} className="generate-btn">
+              <FaMagic size={22} />
+            </button>
+            <button type="button" onClick={() => document.getElementById("inputImg").click()} className="upload-btn">
+              <RiImageAddLine size={22} />
+            </button>
           </div>
         </div>
-      ) : (
-        <Chat />
-      )}
-
-      <form
-        className="input-box"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (input) {
-            if (feature === "genimg") {
-              handleGenerateImg();
-            } else {
-              handleSubmit(e);
-            }
-          }
-        }}
-      >
-        {/* ✅ Display uploaded image properly */}
-        {uploadedImg && <img src={uploadedImg} alt="Uploaded" id="im" />}
-
-        {popUp && (
-          <div className="pop-up">
-            <div
-              className="select-up"
-              onClick={() => {
-                setPopUP(false);
-                setFeature("chat");
-                document.getElementById("inputImg").click();
-              }}
-            >
-              <RiImageAddLine />
-              <span>Upload Image</span>
-            </div>
-            <div
-              className="select-gen"
-              onClick={() => {
-                setFeature("genimg");
-                setPopUP(false);
-              }}
-            >
-              <RiImageAiLine />
-              <span>Generate Image</span>
-            </div>
-          </div>
-        )}
-
-        <div id="add" onClick={() => setPopUP((prev) => !prev)}>
-          {feature === "genimg" ? <RiImageAiLine id="genImg" /> : <FiPlus />}
-        </div>
-
-        <input
-          type="text"
-          placeholder="Ask Something..."
-          onChange={(e) => setInput(e.target.value)}
-          value={input}
-        />
-        {input && (
-          <button id="submit">
-            <FaArrowUpLong />
-          </button>
-        )}
       </form>
     </div>
   );

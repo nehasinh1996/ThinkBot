@@ -2,13 +2,13 @@ import { createContext, useState } from "react";
 
 export const dataContext = createContext();
 
-export let user = {
+export const user = {
   data: null,
   mime_type: null,
   imgUrl: null,
 };
 
-export let prevUser = {
+export const prevUser = {
   data: null,
   mime_type: null,
   prompt: null,
@@ -16,24 +16,15 @@ export let prevUser = {
 };
 
 function UserContext({ children }) {
-  let [startRes, setStartRes] = useState(false);
-  let [popUp, setPopUP] = useState(false);
-  let [input, setInput] = useState("");
-  let [feature, setFeature] = useState("chat");
-  let [showResult, setShowResult] = useState("");
-  let [prevFeature, setPrevFeature] = useState("chat");
-  let [genImgUrl, setGenImgUrl] = useState("");
-  let [uploadedImg, setUploadedImg] = useState(null); // ✅ Store uploaded image
+  const [startRes, setStartRes] = useState(false);
+  const [popUp, setPopUP] = useState(false);
+  const [input, setInput] = useState("");
+  const [feature, setFeature] = useState("chat");
+  const [showResult, setShowResult] = useState("");
+  const [genImgUrl, setGenImgUrl] = useState("");
+  const [uploadedImg, setUploadedImg] = useState(null);
 
-  // ✅ Function to handle image upload
-  const handleImageUpload = (file) => {
-    if (file) {
-      const imgUrl = URL.createObjectURL(file); // Create temporary URL
-      setUploadedImg(imgUrl); // Store image URL
-    }
-  };
-
-  let value = {
+  const value = {
     startRes,
     setStartRes,
     popUp,
@@ -44,18 +35,13 @@ function UserContext({ children }) {
     setFeature,
     showResult,
     setShowResult,
-    prevFeature,
-    setPrevFeature,
     genImgUrl,
     setGenImgUrl,
-    uploadedImg, // ✅ Pass uploaded image
+    uploadedImg,
     setUploadedImg,
-    handleImageUpload, // ✅ Function for handling image uploads
   };
 
-  return (
-    <dataContext.Provider value={value}>{children}</dataContext.Provider>
-  );
+  return <dataContext.Provider value={value}>{children}</dataContext.Provider>;
 }
 
 export default UserContext;
